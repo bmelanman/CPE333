@@ -1,2 +1,1 @@
-# CPE333
- 
+# CPE333 - Computer Hardware Architecture and Design
