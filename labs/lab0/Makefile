@@ -24,7 +24,7 @@ all: dirs $(OBJS)
 
 # how to build a .o file from a .c file
 $(BUILD)/%.o: src/%.c
-	$(CC) -c -o $@ $< $(CCFLAGS) 
+	$(CC) -c -o $@ $< $(CCFLAGS)
 
 # how to build a .o file from a .s file
 $(BUILD)/%.o: src/%.s

@@ -1,65 +1,239 @@
-.file	"lab0_functions.c"
-	.option nopic
-	.attribute arch, "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0"
-	.attribute unaligned_access, 0
-	.attribute stack_align, 16
-	.text
-	.align	1
-	.globl	matadd
-	.type	matadd, @function
-matadd:
-	beq	a0,zero,.L1
-	li	a4,0
-.L3:
-	lw	a6,0(a1)
-	lw	a5,0(a2)
-	addiw	a4,a4,1
-	addi	a1,a1,4
-	addw	a5,a5,a6
-	sw	a5,0(a3)
-	addi	a2,a2,4
-	addi	a3,a3,4
-	bgt	a0,a4,.L3
-.L1:
-	ret
-	.size	matadd, .-matadd
+.text
 
-	.align	1
-	.globl	mult
-	.type	mult, @function
-mult:
-	mv	a5,a0
-	li	a0,0
-	beq	a5,zero,.L10
-	beq	a1,zero,.L10
-	blt	a5,zero,.L28
-	li	a2,0
-	blt	a1,zero,.L29
-.L13:
-	li	a0,0
-.L15:
-	andi	a3,a1,1
-	slliw	a4,a5,1
-	srai	a1,a1,1
-	beq	a3,zero,.L14
-	addw	a0,a0,a5
-.L14:
-	sext.w	a5,a4
-	bne	a1,zero,.L15
-	beq	a2,zero,.L10
-	negw	a0,a0
-.L10:
-	ret
-.L29:
-	li	a2,1
-	negw	a1,a1
-	j	.L13
-.L28:
-	negw	a5,a5
-	li	a2,1
-	bge	a1,zero,.L13
-	li	a2,0
-	negw	a1,a1
-	j	.L13
-	.size	mult, .-mult
-	.ident	"GCC: (gc891d8dc2) 13.2.0"
+    .globl       matrix_add
+################################################################################
+# MatrixAdd: Adds two matrices together.                                       #
+################################################################################
+# Inputs: a0 - The number of elements in the given list.                       #
+#         a1 - The address of the first matrix.                                #
+#         a2 - The address of the second matrix.                               #
+#         a3 - The address of the matrix to store the result in.               #
+# Modifies: t0, t1, t2, t3, t4, t5                                             #
+################################################################################
+matrix_add:
+    beq         a0, zero, matrix_add_ret
+
+    # Save registers t0 - t5
+    addi        sp, sp, -24
+    sw          t0, 0(sp)
+    sw          t1, 4(sp)
+    sw          t2, 8(sp)
+    sw          t3, 12(sp)
+    sw          t4, 16(sp)
+    sw          t5, 20(sp)
+
+    mv          t0, zero    # i = 0
+    mv          t1, a1      # a1 = matA
+    mv          t2, a2      # a2 = matB
+    mv          t3, a3      # a3 = matC
+
+matrix_add_loop:
+    lw          t4, 0(t1)   # t4 = matA[i]
+    lw          t5, 0(t2)   # t5 = matB[i]
+
+    add         t5, t5, t4  # t5 = matA[i] + matB[i]
+    sw          t5, 0(t3)   # matC[i] = matA[i] + matB[i]
+
+    addi        t1, t1, 4   # matA++
+    addi        t2, t2, 4   # matB++
+    addi        t3, t3, 4   # matC++
+
+    addi        t0, t0, 1   # if ( ++i < N ); then loop!
+    blt         t0, a0, matrix_add_loop
+
+matrix_add_ret:
+    # Restore registers t0 - t5
+    lw          t0, 0(sp)
+    lw          t1, 4(sp)
+    lw          t2, 8(sp)
+    lw          t3, 12(sp)
+    lw          t4, 16(sp)
+    lw          t5, 20(sp)
+    addi        sp, sp, 24
+
+    ret
+#End############################################################################
+
+    .globl       int32_mult
+################################################################################
+# Int32Mult: Multiplies two 32-bit integers together.                          #
+################################################################################
+# Inputs: a0 - The first integer.                                              #
+#         a1 - The second integer.                                             #
+# Output: a0 - The result of the multiplication.                               #
+################################################################################
+int32_mult:
+
+    # Base cases
+    beq         a0, zero, int32_mult_ret
+    bne         a1, zero, int32_mult_start
+    mv          a0, zero
+    j           int32_mult_ret
+
+int32_mult_start:
+
+    # Save registers t0 - t3
+    addi        sp, sp, -16
+    sw          t0, 0(sp)
+    sw          t1, 4(sp)
+    sw          t2, 8(sp)
+    sw          t3, 12(sp)
+
+    mv          t0, a0      # multiplicand
+    mv          t1, a1      # multiplier
+    mv          t2, zero    # negative flag
+    mv          a0, zero    # result
+
+    # if multiplicand < 0, negate
+    bge         t0, zero, int32_mult_a0_is_pos
+    not         t0, t0      # 2's complement = ~( x ) + 1
+    addi        t0, t0, 1
+    xori        t2, t2, 1   # negative flag ^= 1
+
+int32_mult_a0_is_pos:
+    # if multiplier < 0, negate
+    bge         t1, zero, int32_mult_a1_is_pos
+    not         t1, t1      # 2's complement = ~( x ) + 1
+    addi        t1, t1, 1
+    xori        t2, t2, 1   # negative flag ^= 1
+
+int32_mult_a1_is_pos:
+    # if multiplicand < multiplier, swap them
+    bgt         t0, t1, int32_mult_loop
+    mv          t3, t0
+    mv          t0, t1
+    mv          t1, t3
+
+int32_mult_loop:
+    andi        t3, t1, 1   # # if ( ( multiplier & 0x1 ) == 0 ); skip
+    beq         t3, zero, int32_mult_skip_add
+    add         a0, a0, t0  # result += multiplicand
+int32_mult_skip_add:
+    slli        t0, t0, 1   # multiplicand <<= 1
+    srai        t1, t1, 1   # multiplier >>= 1
+                            # while ( multiplier != 0 ); do loop!
+    bne         t1, zero, int32_mult_loop
+
+    # Restore registers t0 - t3
+    lw          t0, 0(sp)
+    lw          t1, 4(sp)
+    lw          t2, 8(sp)
+    lw          t3, 12(sp)
+    addi        sp, sp, 16
+
+int32_mult_ret:
+    ret
+#End############################################################################
+
+    .globl       matrix_mult
+################################################################################
+# MatrixMult: Multiplies two matrices together.                                #
+################################################################################
+# Inputs: a0 - (N) The length of the matrices.                                 #
+#         a1 - (matA) The address of the first matrix.                         #
+#         a2 - (matB) The address of the second matrix.                        #
+#         a3 - (matC) The address of the matrix to store the result .          #
+################################################################################
+matrix_mult:
+    beq         a0, zero, matrix_mult_ret
+
+    # Save registers t0 - t6, a0 - a7, and ra
+    addi        sp, sp, -64
+    sw          t0, 0(sp)
+    sw          t1, 4(sp)
+    sw          t2, 8(sp)
+    sw          t3, 12(sp)
+    sw          t4, 16(sp)
+    sw          t5, 20(sp)
+    sw          t6, 24(sp)
+    sw          a0, 28(sp)
+    sw          a1, 32(sp)
+    sw          a2, 36(sp)
+    sw          a3, 40(sp)
+    sw          a4, 44(sp)
+    sw          a5, 48(sp)
+    sw          a6, 52(sp)
+    sw          a7, 56(sp)
+    sw          ra, 60(sp)
+
+    # Save inputs so we can use the registers
+    mv          a4, a0      # a4 = N
+    mv          a5, a1      # a5 = matA
+    mv          a6, a2      # a6 = matB
+    mv          a7, a3      # a7 = matC
+
+    mv          t0, zero    # i = 0
+
+matrix_mult_loop1:
+    mv          t1, zero    # j = 0
+
+matrix_mult_loop2:
+    mv          t2, zero    # k = 0
+    mv          t3, zero    # sum = 0
+
+    mv          a0, t1      # a0 = j
+    mv          a1, a4      # a1 = N
+    jal         int32_mult
+    mv          t4, a0      # t4 = j * N
+
+matrix_mult_loop3:
+    mv          a0, t2      # a0 = k
+    mv          a1, a4      # a1 = N
+    jal        int32_mult
+    mv          t5, a0      # t5 = k * N
+
+                            # a0 = matA[j * N + k]
+    add         a2, t4, t2  # a2 = j * N + k
+    slli        a2, a2, 2   # a2 *= 4
+    add         a2, a2, a5  # a2 = &matA[j * N + k]
+    lw          a0, 0(a2)   # a0 = matA[j * N + k]
+
+                            # a1 = matB[k * N + i]
+    add         a2, t5, t0  # a2 = k * N + i
+    slli        a2, a2, 2   # a2 *= 4
+    add         a2, a2, a6  # a2 = &matB[k * N + i]
+    lw          a1, 0(a2)   # a1 = matB[k * N + i]
+
+    jal        int32_mult
+    add         t3, t3, a0  # sum += matA[j * N + k] * matB[k * N + i]
+
+    addi        t2, t2, 1   # if ( ++k < N ); then loop!
+    blt         t2, a4, matrix_mult_loop3
+    # End of matrix_mult_loop3
+
+                            # matC[j * N + i] = sum
+    add         a2, t4, t0  # a2 = j * N + i
+    slli        a2, a2, 2   # a2 *= 4
+    add         a2, a2, a7  # a2 = &matC[j * N + i]
+    sw          t3, 0(a2)   # matC[j * N + i] = sum
+
+    addi        t1, t1, 1   # # if ( ++j < N ); then loop!
+    blt         t1, a4, matrix_mult_loop2
+    # End of matrix_mult_loop2
+
+    addi        t0, t0, 1   # if ( ++i < N ); then loop!
+    blt         t0, a4, matrix_mult_loop1
+    # End of matrix_mult_loop1
+
+    # Restore registers t0 - t6, a0 - a7, and ra
+    lw          t0, 0(sp)
+    lw          t1, 4(sp)
+    lw          t2, 8(sp)
+    lw          t3, 12(sp)
+    lw          t4, 16(sp)
+    lw          t5, 20(sp)
+    lw          t6, 24(sp)
+    lw          a0, 28(sp)
+    lw          a1, 32(sp)
+    lw          a2, 36(sp)
+    lw          a3, 40(sp)
+    lw          a4, 44(sp)
+    lw          a5, 48(sp)
+    lw          a6, 52(sp)
+    lw          a7, 56(sp)
+    lw          ra, 60(sp)
+    addi        sp, sp, 64
+
+matrix_mult_ret:
+    ret
+#End############################################################################

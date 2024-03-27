@@ -1,2 +1,8 @@
 # Ignore toolchain
-tools
+tools/*
+# Don't ignore c file in tools
+!tools/*.c
+
+# Ignore waveform files
+*.vcd
+*.fst
